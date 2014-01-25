@@ -19,7 +19,7 @@ public class Manager {
     private static final ExecutorService pool = Executors
             .newFixedThreadPool(10);
 
-public static void runProgram(String codePath, String submissionID,
+public static void runProgram(String codePath, int submissionID,
             Connection connection, String correct_output) {
     Future<Map<String, String>> result = pool.submit(new SubmissionRunner(
                     codePath, correct_output));

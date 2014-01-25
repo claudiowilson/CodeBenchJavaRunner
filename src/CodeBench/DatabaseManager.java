@@ -8,9 +8,15 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import com.rabbitmq.client.ConnectionFactory;
+//import com.rabbitmq.client.Connection RabbitConnection;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.QueueingConsumer;
 
 public class DatabaseManager {
-	    public static void getData(String submissionID)
+		private static final String EXCHANGE_NAME = "codebench";
+		
+	    public static void getData(int submissionID)
 	            throws ClassNotFoundException, SQLException, IOException {
 	    Class.forName("org.postgresql.Driver");
 	    Connection connection = null;
@@ -97,11 +103,26 @@ public class DatabaseManager {
 	    return ans;
 	}
 	
-	public static void main(String args[]) {
-	    try {
-	            getData(args[0]);
-	    } catch (ClassNotFoundException | SQLException | IOException e) {
+	public static void main(String args[]) throws Exception {
+		ConnectionFactory factory = new ConnectionFactory();
+		factory.setUri("amqp://guest:guest@107.170.12.71:5672");
+		com.rabbitmq.client.Connection connection = factory.newConnection();
+		Channel channel = connection.createChannel();
+		String queueName = channel.queueDeclare().getQueue();
+		channel.queueBind(queueName, EXCHANGE_NAME, "#");
+		QueueingConsumer consumer = new QueueingConsumer(channel);
+		channel.basicConsume(queueName, true, consumer);
+		System.out.println("running!");
+		while(true) {
+			QueueingConsumer.Delivery delivery = consumer.nextDelivery();
+			String message = new String(delivery.getBody());
+			try {
+				int submissionId = Integer.parseInt(message);
+				getData(submissionId);
+			} catch (ClassNotFoundException | SQLException | IOException | NumberFormatException e) {
 	            e.printStackTrace();
-	    }
+			}
+			System.out.println(message);
+		}
 	}
 }
