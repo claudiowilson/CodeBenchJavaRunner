@@ -22,7 +22,7 @@ public class DatabaseManager {
 	    Connection connection = null;
 	    // System.out.print("Connecting...");
 	    connection = DriverManager.getConnection(
-	                    "jdbc:postgresql://107.170.12.71:5432/codebench", "postgres",
+	                    "jdbc:postgresql://localhost:5432/codebench", "postgres",
 	                    "yoloswag");
 	    connection.setAutoCommit(false);
 	    String sql = "SELECT * FROM codebench.submission;";
