@@ -91,7 +91,6 @@ public class DatabaseManager {
 	    connection.close();
 	
 	    System.out.println(submissionID);
-	    System.exit(0);
 	    // CommunicationManager.sendMessage(submissionID);
 	}
 	
