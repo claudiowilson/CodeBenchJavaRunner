@@ -28,7 +28,7 @@ public class DatabaseManager {
         Class.forName("org.postgresql.Driver");
         Connection connection = null;
         connection = DriverManager.getConnection(
-                "jdbc:postgresql://localhost:5432/postgres", "postgres",
+                "jdbc:postgresql://107.170.12.71:5432/postgres", "postgres",
                 "yoloswag");
         connection.setAutoCommit(false);
 
@@ -157,7 +157,7 @@ public class DatabaseManager {
         com.rabbitmq.client.Connection connection = factory.newConnection();
         Channel channel = connection.createChannel();
         String queueName = channel.queueDeclare().getQueue();
-        channel.queueBind(queueName, EXCHANGE_NAME, "#");
+        channel.queueBind(queueName, EXCHANGE_NAME, "java");
         QueueingConsumer consumer = new QueueingConsumer(channel);
         channel.basicConsume(queueName, true, consumer);
         System.out.println("running!");
