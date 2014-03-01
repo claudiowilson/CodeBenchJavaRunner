@@ -1,13 +1,8 @@
 package CodeBench;
 
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.ConnectionFactory;
-import com.rabbitmq.client.QueueingConsumer;
 import org.apache.commons.io.FileUtils;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.sql.*;
 import java.util.ArrayList;
 
@@ -24,7 +19,7 @@ public class DatabaseManager {
      * @throws IOException
      */
     public static void getData(int submissionID)
-            throws ClassNotFoundException, SQLException, IOException {
+            throws ClassNotFoundException, SQLException, IOException, InterruptedException {
         //Connect to the postgres database
         Class.forName("org.postgresql.Driver");
         Connection connection = null;
@@ -34,7 +29,7 @@ public class DatabaseManager {
         connection.setAutoCommit(false);
 
         //Get all the code for the current submission
-        String sql = "SELECT * FROM codebench.code WHERE submission_id=" + submissionID + ";";
+        String sql = "SELECT * FROM codebench.code WHERE submission_id=" + submissionID + " ORDER BY code_id;";
         Statement statement = connection.createStatement();
         ResultSet result = statement.executeQuery(sql);
 
@@ -56,7 +51,13 @@ public class DatabaseManager {
             codeFiles.add(codeFile);
         }
 
-        createJavaFile(codeFiles, "sub_" + submissionID);
+        String directory = "sub_" + submissionID;
+        createJavaFile(codeFiles, directory);
+        String compileResult = compileJavaFiles(codeFiles, directory);
+
+        statement.executeUpdate("UPDATE codebench.submission SET errors = '" + compileResult + "' WHERE " +
+                "submission_id=" + submissionID + ";");
+        connection.commit();
 
             /*if (submissionCode != null) {
                 File filePath = new File("programs" + File.separator
@@ -140,12 +141,81 @@ public class DatabaseManager {
         }
     }
 
-    private static String generateFileName() {
-        String ans = "";
-        for (int i = 0; i < 15; i++) {
-            ans += (char) ((int) ((Math.random() * 26)) + 97);
+    /**
+     * Compiles the java files. Returns null if the compilation was successful.
+     *
+     * @param directoryName
+     *
+     * @return
+     *
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    private static String compileJavaFiles(ArrayList<CodeFile> codeFiles, String directoryName) throws IOException,
+            InterruptedException {
+        String[] args = new String[codeFiles.size() + 3];
+        //Define the classpatch for javac so the user can call methods in other classes
+        args[0] = "javac";
+        args[1] = "-sourcepath";
+        args[2] = directoryName;
+        for (int i = 0; i < codeFiles.size(); i++) {
+            args[i + 3] = directoryName + File.separator + codeFiles.get(i).getFileName();
         }
-        return ans;
+        Process process = new ProcessBuilder(args).start();
+
+        //Get any errors from the compilation
+        String error = getError(process);
+
+        process.waitFor();
+
+        if (process.exitValue() != 0) {
+            return error;
+        }
+        return null;
+    }
+
+    /**
+     * Returns the errors encountered by the given Process.
+     *
+     * @param p
+     *
+     * @return
+     *
+     * @throws IOException
+     */
+    private static String getError(Process p) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(
+                p.getErrorStream()));
+        StringBuilder builder = new StringBuilder();
+        String line = null;
+        while ((line = br.readLine()) != null) {
+            builder.append(line);
+            builder.append(System.getProperty("line.separator"));
+        }
+        String result = builder.toString();
+        return result;
+    }
+
+    /**
+     * Returns the output of the given Process.
+     *
+     * @param p
+     *
+     * @return
+     *
+     * @throws IOException
+     */
+    private static String getOutput(Process p) throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(
+                p.getInputStream()));
+        StringBuilder builder = new StringBuilder();
+        String line = null;
+        while ((line = br.readLine()) != null) {
+            builder.append(line);
+            builder.append(System.getProperty("line.separator"));
+        }
+        String result = builder.toString();
+        return result;
     }
 
     public static void main(String args[]) throws Exception {
