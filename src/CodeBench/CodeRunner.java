@@ -23,6 +23,8 @@ abstract class CodeRunner {
         switch (language.trim().toLowerCase()) {
             case "java":
                 return new JavaCodeRunner(codeFiles, directoryName);
+            case "python":
+                return new PythonCodeRunner(codeFiles, directoryName);
             default:
                 return null;
         }
