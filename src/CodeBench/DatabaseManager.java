@@ -1,5 +1,9 @@
 package CodeBench;
 
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.QueueingConsumer;
+
 import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
@@ -142,8 +146,7 @@ public class DatabaseManager {
     }
 
     public static void main(String args[]) throws Exception {
-        getData(1);
-        /*ConnectionFactory factory = new ConnectionFactory();
+        ConnectionFactory factory = new ConnectionFactory();
         factory.setUri("amqp://guest:guest@107.170.12.71:5672");
         com.rabbitmq.client.Connection connection = factory.newConnection();
         Channel channel = connection.createChannel();
@@ -162,6 +165,6 @@ public class DatabaseManager {
                 e.printStackTrace();
             }
             System.out.println(message);
-        }*/
+        }
     }
 }
