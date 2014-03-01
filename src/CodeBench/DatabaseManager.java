@@ -110,7 +110,12 @@ public class DatabaseManager {
         connection.commit();
 
         //Get the output for the program
+        long startTime = System.currentTimeMillis();
         String output = codeRunner.runProgram(input);
+        long millisecondsToRun = System.currentTimeMillis() - startTime;
+        statement.executeUpdate("UPDATE codebench.submission SET time_taken = Interval '" + millisecondsToRun + " " +
+                "milliseconds' " + "WHERE submission_id=" + submissionID + ";");
+
 
         //Trim the output to get rid of trailing new line characters
         output = output.trim();
