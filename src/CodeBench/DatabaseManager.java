@@ -28,7 +28,7 @@ public class DatabaseManager {
         Class.forName("org.postgresql.Driver");
         Connection connection = null;
         connection = DriverManager.getConnection(
-                "jdbc:postgresql://107.170.12.71:5432/postgres", "postgres",
+                "jdbc:postgresql://107.170.12.71:5432/codebench", "postgres",
                 "yoloswag");
         connection.setAutoCommit(false);
 
@@ -46,6 +46,7 @@ public class DatabaseManager {
 
         //Ensure the language is recognized
         if (extension == null) {
+            System.out.println("Invalid language");
             statement.executeUpdate("UPDATE codebench.submission SET errors = 'Unrecognized language' WHERE " +
                     "submission_id=" + submissionID + ";");
             connection.commit();
@@ -146,6 +147,8 @@ public class DatabaseManager {
                 return "java";
             case "python":
                 return "py";
+            case "c":
+                return "c";
             default:
                 return null;
         }
@@ -170,7 +173,6 @@ public class DatabaseManager {
             } catch (ClassNotFoundException | SQLException | IOException | NumberFormatException e) {
                 e.printStackTrace();
             }
-            System.out.println(message);
         }
     }
 }

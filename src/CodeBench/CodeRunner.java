@@ -25,6 +25,8 @@ abstract class CodeRunner {
                 return new JavaCodeRunner(codeFiles, directoryName);
             case "python":
                 return new PythonCodeRunner(codeFiles, directoryName);
+            case "c":
+                return new CCodeRunner(codeFiles, directoryName);
             default:
                 return null;
         }
