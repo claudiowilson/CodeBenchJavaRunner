@@ -16,4 +16,8 @@ public class CodeFile {
     public String getFileName() {
         return fileName+".java";
     }
+
+    public String getProgramName() {
+        return fileName;
+    }
 }

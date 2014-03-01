@@ -7,8 +7,6 @@ import java.sql.*;
 import java.util.ArrayList;
 
 public class DatabaseManager {
-    private static final String EXCHANGE_NAME = "codebench";
-
     /**
      * Get all the data corresponding to the submission with the given ID.
      *
@@ -51,65 +49,53 @@ public class DatabaseManager {
             codeFiles.add(codeFile);
         }
 
+        //Create the .java and .class files
         String directory = "sub_" + submissionID;
         createJavaFile(codeFiles, directory);
         String compileResult = compileJavaFiles(codeFiles, directory);
 
-        statement.executeUpdate("UPDATE codebench.submission SET errors = '" + compileResult + "' WHERE " +
-                "submission_id=" + submissionID + ";");
+        //Update the table with the result of the compilation
+        if (compileResult == null) {
+            statement.executeUpdate("UPDATE codebench.submission SET errors = null WHERE " +
+                    "submission_id=" + submissionID + ";");
+        }
+        else {
+            statement.executeUpdate("UPDATE codebench.submission SET errors = '" + compileResult + "' WHERE " +
+                    "submission_id=" + submissionID + ";");
+        }
         connection.commit();
 
-            /*if (submissionCode != null) {
-                File filePath = new File("programs" + File.separator
-                        + generateFileName());
-                filePath.mkdirs();
+        //Get the output for the program
+        String output = runProgram(codeFiles, directory);
 
-                String fileName = filePath + File.separator + "program.java";
-                File codeFile = new File(fileName);
-                codeFile.createNewFile();
-                PrintWriter writer = new PrintWriter(fileName, "UTF-8");
-                writer.println("import java.io.*;");
-                writer.println("import java.util.*;");
-                writer.println("");
-                writer.println("public class program {");
-                writer.println(submissionCode.replace("\r", ""));
-                writer.println("}");
-                writer.close();
+        //--------Get the correct output from the table
+        //Get the current submission
+        ResultSet resultSet = statement.executeQuery("SELECT * FROM codebench.submission WHERE submission_id=" +
+                submissionID + ";");
+        resultSet.next();
+        //Get the ID for the question this submission is for
+        String questionID = resultSet.getString("question");
+        //Get the question from the ID
+        resultSet = statement.executeQuery("SELECT * FROM codebench.question WHERE question_id=" + questionID + ";");
+        resultSet.next();
+        //Get the correct output for the question
+        String correctOutput = resultSet.getString("output");
 
-                // ////////////////////////////////////////////////////////////////
-                // Get the Question Input and Output
-                int questionID = result.getInt("question");
-                Statement input_statement = connection.createStatement();
-                ResultSet input_result = input_statement
-                        .executeQuery("SELECT * FROM codebench.question where question_id="
-                                + questionID + ";");
+        //Trim the output to get rid of trailing new line characters
+        output=output.trim();
 
-                String correct_output = "";
-                while (input_result.next()) {
-                    correct_output = input_result.getString("output");
-                    String inputFileName = filePath + File.separator
-                            + "input.txt";
-                    File f = new File(inputFileName);
-                    f.createNewFile();
-                    writer = new PrintWriter(inputFileName, "UTF-8");
-                    writer.print(input_result.getString("input"));
-                    writer.close();
-                    break;
-                }
-
-                Manager.runProgram(fileName, submissionID, connection, correct_output);
-
-                codeFile.delete();
-                File compiledFile = new File("programs" + File.separator
-                        + fileName.replace(".java", ".class"));
-                if (compiledFile.exists())
-                    compiledFile.delete();
-                File inputFile = new File(filePath + File.separator
-                        + "input.txt");
-                if (inputFile.exists())
-                    inputFile.delete();
-                filePath.delete();
-            }*/
+        if (output.equals(correctOutput)) {
+            statement.executeUpdate("UPDATE codebench.submission SET errors = null WHERE " +
+                    "submission_id=" + submissionID + ";");
+        }
+        else {
+            statement.executeUpdate("UPDATE codebench.submission SET errors = 'Incorrect output! Your output was: " +
+                    output + " but the correct output is: " + correctOutput + "' WHERE " +
+                    "submission_id=" + submissionID + ";");
+        }
+        connection.commit();
+        statement.close();
+        connection.close();
     }
 
     private static void createJavaFile(ArrayList<CodeFile> codeFiles, String directoryName) {
@@ -163,15 +149,39 @@ public class DatabaseManager {
         }
         Process process = new ProcessBuilder(args).start();
 
+        process.waitFor();
+
         //Get any errors from the compilation
         String error = getError(process);
-
-        process.waitFor();
 
         if (process.exitValue() != 0) {
             return error;
         }
         return null;
+    }
+
+    public static String runProgram(ArrayList<CodeFile> codeFiles, String directoryName) throws IOException,
+            InterruptedException {
+        String[] args = new String[4];
+        //Define the classpatch for java
+        args[0] = "java";
+        args[1] = "-cp";
+        args[2] = directoryName;
+        args[3] = codeFiles.get(0).getProgramName();
+        Process process = new ProcessBuilder(args).start();
+
+        //Get any errors from the running
+        String error = getError(process);
+        String output = getOutput(process);
+
+        process.waitFor();
+
+        //If there was an error running the program, return it
+        if (error != null && error.length() > 0) {
+            System.out.println(error);
+            return error;
+        }
+        return output;
     }
 
     /**
