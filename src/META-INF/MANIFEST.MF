@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Class-Path: ezmorph-1.0.6.jar commons-io-1.2.jar commons-cli-1.1.jar r
+ abbitmq-client.jar commons-lang-2.6.jar commons-logging-1.1.1.jar com
+ mons-beanutils-1.8.3.jar commons-collections-3.2.1.jar postgresql-9.3
+ -1100.jdbc41.jar
+Main-Class: CodeBench.DatabaseManager
+
