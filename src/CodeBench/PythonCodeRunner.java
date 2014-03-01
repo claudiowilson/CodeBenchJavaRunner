@@ -10,11 +10,16 @@ public class PythonCodeRunner extends CodeRunner {
     }
 
     @Override
-    public String runProgram() throws IOException, InterruptedException {
-        String[] args = new String[2];
+    public String runProgram(String[] input) throws IOException, InterruptedException {
+        String[] args = new String[2 + input.length];
         //Run the python code
         args[0] = "python3";
         args[1] = directoryName + File.separator + codeFiles.get(0).getFileName();
+        //Add the input as arguments to the java program
+        for (int i = 0; i < input.length; i++) {
+            args[i + 2] = input[i];
+        }
+
         Process process = new ProcessBuilder(args).start();
 
         //Get any errors from the running

@@ -22,6 +22,8 @@ public class DatabaseManager {
      */
     public static void getData(int submissionID)
             throws ClassNotFoundException, SQLException, IOException, InterruptedException {
+        System.out.print("Processing submission " + submissionID + ": ");
+
         //Connect to the postgres database
         Class.forName("org.postgresql.Driver");
         Connection connection = null;
@@ -55,6 +57,8 @@ public class DatabaseManager {
         resultSet.next();
         //Get the correct output for the question
         String correctOutput = resultSet.getString("output");
+        //Get the input for the question
+        String input[] = resultSet.getString("input").split("\\r?\\n");
 
         //Get all the code for the current submission
         String sql = "SELECT * FROM codebench.code WHERE submission_id=" + submissionID + " ORDER BY code_id;";
@@ -105,16 +109,18 @@ public class DatabaseManager {
         connection.commit();
 
         //Get the output for the program
-        String output = codeRunner.runProgram();
+        String output = codeRunner.runProgram(input);
 
         //Trim the output to get rid of trailing new line characters
         output = output.trim();
 
         if (output.equals(correctOutput)) {
+            System.out.println("Correct submission");
             statement.executeUpdate("UPDATE codebench.submission SET errors = null WHERE " +
                     "submission_id=" + submissionID + ";");
         }
         else {
+            System.out.println("Incorrect submission");
             statement.executeUpdate("UPDATE codebench.submission SET errors = 'Incorrect output! Your output was: " +
                     output + " but the correct output is: " + correctOutput + "' WHERE " +
                     "submission_id=" + submissionID + ";");

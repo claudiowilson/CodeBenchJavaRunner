@@ -35,7 +35,7 @@ abstract class CodeRunner {
         this.directoryName = directoryName;
     }
 
-    abstract public String runProgram() throws IOException,
+    abstract public String runProgram(String input[]) throws IOException,
             InterruptedException;
 
     abstract public String compileFiles() throws IOException,

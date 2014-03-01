@@ -10,13 +10,18 @@ public class JavaCodeRunner extends CodeRunner {
     }
 
     @Override
-    public String runProgram() throws IOException, InterruptedException {
-        String[] args = new String[4];
-        //Define the classpatch for java
+    public String runProgram(String[] input) throws IOException, InterruptedException {
+        String[] args = new String[4 + input.length];
+        //Define the classpath for java
         args[0] = "java";
         args[1] = "-cp";
         args[2] = directoryName;
         args[3] = codeFiles.get(0).getProgramName();
+        //Add the input as arguments to the java program
+        for (int i = 0; i < input.length; i++) {
+            args[i + 4] = input[i];
+        }
+
         Process process = new ProcessBuilder(args).start();
 
         //Get any errors from the running
