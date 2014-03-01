@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.sql.Connection;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -15,7 +16,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-public class Manager {
+/*public class Manager {
     private static final ExecutorService pool = Executors
             .newFixedThreadPool(10);
 
@@ -55,26 +56,19 @@ public class Manager {
 }
 
 class SubmissionRunner implements Callable<Map<String, String>> {
-    String codePath;
-    String programName;
+    ArrayList<String> codePath;
     String correct_output;
 
-    public SubmissionRunner(String codePath, String correct_output) {
-        if (!codePath.endsWith(".java")) {
-            codePath = codePath + ".java";
-        }
+    public SubmissionRunner(ArrayList<String> codePath, String correct_output) {
         this.codePath = codePath;
-        programName = codePath.replace(".java", "");
         this.correct_output = correct_output;
-        // System.out.println(codePath + " " + programName);
     }
 
     @Override
     public Map<String, String> call() throws Exception {
-        Map<String, String> json = new HashMap<String, String>();
-
-        if (!codePath.endsWith(".java")) {
-            codePath = codePath + ".java";
+        for(String name:codePath) {
+            String fileName = name+".java";
+            File file = new File(fileName);
         }
 
         File codeFile = new File(codePath);
@@ -90,7 +84,7 @@ class SubmissionRunner implements Callable<Map<String, String>> {
 
         // System.out.println("compile");
 
-        Process process = new ProcessBuilder("javac", codePath).start();
+        Process process = new ProcessBuilder("javac", "*").start();
 
         String output = getOutput(process);
         String error = getError(process);
@@ -170,3 +164,4 @@ class SubmissionRunner implements Callable<Map<String, String>> {
         return result;
     }
 }
+*/
