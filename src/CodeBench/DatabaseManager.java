@@ -1,12 +1,16 @@
 package CodeBench;
 
-import org.apache.commons.io.FileUtils;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.ConnectionFactory;
+import com.rabbitmq.client.QueueingConsumer;
 
-import java.io.*;
+import java.io.IOException;
 import java.sql.*;
 import java.util.ArrayList;
 
 public class DatabaseManager {
+    private static final String EXCHANGE_NAME = "codebench";
+
     /**
      * Get all the data corresponding to the submission with the given ID.
      *
@@ -26,9 +30,34 @@ public class DatabaseManager {
                 "yoloswag");
         connection.setAutoCommit(false);
 
+        //--------Get the correct output from the table
+        //Get the current submission
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("SELECT * FROM codebench.submission WHERE submission_id=" +
+                submissionID + ";");
+        resultSet.next();
+        //Get the ID for the question this submission is for
+        String questionID = resultSet.getString("question");
+        //Get the language for the submission
+        String language = resultSet.getString("language");
+        String extension = getExtensionFromLanguage(language);
+
+        //Ensure the language is recognized
+        if (extension == null) {
+            statement.executeUpdate("UPDATE codebench.submission SET errors = 'Unrecognized language' WHERE " +
+                    "submission_id=" + submissionID + ";");
+            connection.commit();
+            return;
+        }
+
+        //Get the question from the ID
+        resultSet = statement.executeQuery("SELECT * FROM codebench.question WHERE question_id=" + questionID + ";");
+        resultSet.next();
+        //Get the correct output for the question
+        String correctOutput = resultSet.getString("output");
+
         //Get all the code for the current submission
         String sql = "SELECT * FROM codebench.code WHERE submission_id=" + submissionID + " ORDER BY code_id;";
-        Statement statement = connection.createStatement();
         ResultSet result = statement.executeQuery(sql);
 
         //The list of code files that correspond to the current submission
@@ -45,14 +74,24 @@ public class DatabaseManager {
                 continue;
             }
 
-            CodeFile codeFile = new CodeFile(fileName, submissionCode);
+            CodeFile codeFile = new CodeFile(fileName, submissionCode, extension);
             codeFiles.add(codeFile);
         }
 
         //Create the .java and .class files
         String directory = "sub_" + submissionID;
-        createJavaFile(codeFiles, directory);
-        String compileResult = compileJavaFiles(codeFiles, directory);
+        CodeRunner codeRunner = CodeRunner.createRunner(language, codeFiles, directory);
+
+        //If the CodeRunner is null, the language was not recognized and we cannot continue
+        if (codeRunner == null) {
+            statement.executeUpdate("UPDATE codebench.submission SET errors = 'Unrecognized language' WHERE " +
+                    "submission_id=" + submissionID + ";");
+            connection.commit();
+            return;
+        }
+
+        codeRunner.createFiles();
+        String compileResult = codeRunner.compileFiles();
 
         //Update the table with the result of the compilation
         if (compileResult == null) {
@@ -66,23 +105,10 @@ public class DatabaseManager {
         connection.commit();
 
         //Get the output for the program
-        String output = runProgram(codeFiles, directory);
-
-        //--------Get the correct output from the table
-        //Get the current submission
-        ResultSet resultSet = statement.executeQuery("SELECT * FROM codebench.submission WHERE submission_id=" +
-                submissionID + ";");
-        resultSet.next();
-        //Get the ID for the question this submission is for
-        String questionID = resultSet.getString("question");
-        //Get the question from the ID
-        resultSet = statement.executeQuery("SELECT * FROM codebench.question WHERE question_id=" + questionID + ";");
-        resultSet.next();
-        //Get the correct output for the question
-        String correctOutput = resultSet.getString("output");
+        String output = codeRunner.runProgram();
 
         //Trim the output to get rid of trailing new line characters
-        output=output.trim();
+        output = output.trim();
 
         if (output.equals(correctOutput)) {
             statement.executeUpdate("UPDATE codebench.submission SET errors = null WHERE " +
@@ -98,134 +124,25 @@ public class DatabaseManager {
         connection.close();
     }
 
-    private static void createJavaFile(ArrayList<CodeFile> codeFiles, String directoryName) {
-        //Create the folder
-        File directory = new File(directoryName);
-        directory.mkdirs();
-        //Clean out all the files already in the directory
-        try {
-            FileUtils.cleanDirectory(directory);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        //Look at each code file
-        for (CodeFile codeFile : codeFiles) {
-            //Create the file
-            String fileName = directoryName + File.separator + codeFile.getFileName();
-            File file = new File(fileName);
-            try {
-                file.createNewFile();
-
-                //Add the code to the file
-                PrintWriter writer = new PrintWriter(fileName, "UTF-8");
-                writer.print(codeFile.getCode());
-                writer.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
     /**
-     * Compiles the java files. Returns null if the compilation was successful.
+     * Returns the file extension of the given language. If the language is not recognized, null is returned.
      *
-     * @param directoryName
+     * @param language
      *
      * @return
-     *
-     * @throws IOException
-     * @throws InterruptedException
      */
-    private static String compileJavaFiles(ArrayList<CodeFile> codeFiles, String directoryName) throws IOException,
-            InterruptedException {
-        String[] args = new String[codeFiles.size() + 3];
-        //Define the classpatch for javac so the user can call methods in other classes
-        args[0] = "javac";
-        args[1] = "-sourcepath";
-        args[2] = directoryName;
-        for (int i = 0; i < codeFiles.size(); i++) {
-            args[i + 3] = directoryName + File.separator + codeFiles.get(i).getFileName();
+    private static String getExtensionFromLanguage(String language) {
+        if(language==null)
+            return null;
+
+        switch (language.trim().toLowerCase()) {
+            case "java":
+                return "java";
+            case "python":
+                return "py";
+            default:
+                return null;
         }
-        Process process = new ProcessBuilder(args).start();
-
-        process.waitFor();
-
-        //Get any errors from the compilation
-        String error = getError(process);
-
-        if (process.exitValue() != 0) {
-            return error;
-        }
-        return null;
-    }
-
-    public static String runProgram(ArrayList<CodeFile> codeFiles, String directoryName) throws IOException,
-            InterruptedException {
-        String[] args = new String[4];
-        //Define the classpatch for java
-        args[0] = "java";
-        args[1] = "-cp";
-        args[2] = directoryName;
-        args[3] = codeFiles.get(0).getProgramName();
-        Process process = new ProcessBuilder(args).start();
-
-        //Get any errors from the running
-        String error = getError(process);
-        String output = getOutput(process);
-
-        process.waitFor();
-
-        //If there was an error running the program, return it
-        if (error != null && error.length() > 0) {
-            System.out.println(error);
-            return error;
-        }
-        return output;
-    }
-
-    /**
-     * Returns the errors encountered by the given Process.
-     *
-     * @param p
-     *
-     * @return
-     *
-     * @throws IOException
-     */
-    private static String getError(Process p) throws IOException {
-        BufferedReader br = new BufferedReader(new InputStreamReader(
-                p.getErrorStream()));
-        StringBuilder builder = new StringBuilder();
-        String line = null;
-        while ((line = br.readLine()) != null) {
-            builder.append(line);
-            builder.append(System.getProperty("line.separator"));
-        }
-        String result = builder.toString();
-        return result;
-    }
-
-    /**
-     * Returns the output of the given Process.
-     *
-     * @param p
-     *
-     * @return
-     *
-     * @throws IOException
-     */
-    private static String getOutput(Process p) throws IOException {
-        BufferedReader br = new BufferedReader(new InputStreamReader(
-                p.getInputStream()));
-        StringBuilder builder = new StringBuilder();
-        String line = null;
-        while ((line = br.readLine()) != null) {
-            builder.append(line);
-            builder.append(System.getProperty("line.separator"));
-        }
-        String result = builder.toString();
-        return result;
     }
 
     public static void main(String args[]) throws Exception {
