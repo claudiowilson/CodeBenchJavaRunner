@@ -102,12 +102,18 @@ public class DatabaseManager {
         if (compileResult == null) {
             statement.executeUpdate("UPDATE codebench.submission SET errors = null WHERE " +
                     "submission_id=" + submissionID + ";");
+            connection.commit();
         }
         else {
-            statement.executeUpdate("UPDATE codebench.submission SET errors = '" + compileResult + "' WHERE " +
+            System.out.println("UPDATE codebench.submission SET errors = $err_msg$" + compileResult + "$err_msg$ WHERE " +
                     "submission_id=" + submissionID + ";");
+            statement.executeUpdate("UPDATE codebench.submission SET errors = $err_msg$" + compileResult + "$err_msg$ WHERE " +
+                    "submission_id=" + submissionID + ";");
+            connection.commit();
+
+            //If the program failed to compile, don't even bother trying to run it
+            return;
         }
-        connection.commit();
 
         //Get the output for the program
         long startTime = System.currentTimeMillis();
