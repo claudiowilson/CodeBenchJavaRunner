@@ -57,7 +57,7 @@ public class DatabaseManager {
         resultSet = statement.executeQuery("SELECT * FROM codebench.question WHERE question_id=" + questionID + ";");
         resultSet.next();
         //Get the correct output for the question
-        String correctOutput = resultSet.getString("output");
+        String correctOutput[] = resultSet.getString("output").split("\\r?\\n");
         //Get the input for the question
         String input[] = resultSet.getString("input").split("\\r?\\n");
 
@@ -112,29 +112,44 @@ public class DatabaseManager {
             connection.commit();
 
             //If the program failed to compile, don't even bother trying to run it
+            statement.executeUpdate("UPDATE codebench.submission SET time_taken = Interval '0 milliseconds'" + "WHERE submission_id=" + submissionID + ";");
+            connection.commit();
             return;
         }
 
         //Get the output for the program
         long startTime = System.currentTimeMillis();
-        String output = codeRunner.runProgram(input);
+        int outputIndex = 0;
+        boolean correctSubmission = true;
+        StringBuilder builder = new StringBuilder();
+        for(String args : input) {
+        	String output = codeRunner.runProgram(args.split(" "));
+        	output = output.trim();
+        	if(!output.equals(correctOutput[outputIndex])) {
+        		correctSubmission = false;
+        		builder.append("Incorrect output! Your output was: " +
+                    output + " but the correct output is: " + correctOutput[outputIndex] +"\n");
+        	}
+        	outputIndex++;
+        }
+        
         long millisecondsToRun = System.currentTimeMillis() - startTime;
         statement.executeUpdate("UPDATE codebench.submission SET time_taken = Interval '" + millisecondsToRun + " " +
                 "milliseconds' " + "WHERE submission_id=" + submissionID + ";");
 
 
         //Trim the output to get rid of trailing new line characters
-        output = output.trim();
+        
 
-        if (output.equals(correctOutput)) {
+        if (correctSubmission) {
             System.out.println("Correct submission");
             statement.executeUpdate("UPDATE codebench.submission SET errors = null WHERE " +
                     "submission_id=" + submissionID + ";");
         }
         else {
             System.out.println("Incorrect submission");
-            statement.executeUpdate("UPDATE codebench.submission SET errors = 'Incorrect output! Your output was: " +
-                    output + " but the correct output is: " + correctOutput + "' WHERE " +
+            statement.executeUpdate("UPDATE codebench.submission SET errors = '" +
+                    builder.toString() + "' WHERE " +
                     "submission_id=" + submissionID + ";");
         }
         connection.commit();
@@ -174,7 +189,7 @@ public class DatabaseManager {
         channel.queueBind(queueName, EXCHANGE_NAME, "java");
         QueueingConsumer consumer = new QueueingConsumer(channel);
         channel.basicConsume(queueName, true, consumer);
-        System.out.println("running!");
+        System.out.println("Running version 1.0!");
         while (true) {
             QueueingConsumer.Delivery delivery = consumer.nextDelivery();
             String message = new String(delivery.getBody());
