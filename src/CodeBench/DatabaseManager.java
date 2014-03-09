@@ -20,7 +20,7 @@ public class DatabaseManager {
      * @throws SQLException
      * @throws IOException
      */
-    public static void getData(int submissionID)
+    public static String getData(int submissionID)
             throws ClassNotFoundException, SQLException, IOException, InterruptedException {
         System.out.print("Processing submission " + submissionID + ": ");
 
@@ -50,7 +50,7 @@ public class DatabaseManager {
             statement.executeUpdate("UPDATE codebench.submission SET errors = 'Unrecognized language' WHERE " +
                     "submission_id=" + submissionID + ";");
             connection.commit();
-            return;
+            return "Invalid language";
         }
 
         //Get the question from the ID
@@ -92,7 +92,7 @@ public class DatabaseManager {
             statement.executeUpdate("UPDATE codebench.submission SET errors = 'Unrecognized language' WHERE " +
                     "submission_id=" + submissionID + ";");
             connection.commit();
-            return;
+            return "Unrecognized Language";
         }
 
         codeRunner.createFiles();
@@ -114,8 +114,10 @@ public class DatabaseManager {
             //If the program failed to compile, don't even bother trying to run it
             statement.executeUpdate("UPDATE codebench.submission SET time_taken = Interval '0 milliseconds'" + "WHERE submission_id=" + submissionID + ";");
             connection.commit();
-            return;
+            return compileResult;
         }
+
+        String outputResult = compileResult + "\n\n";
 
         //Get the output for the program
         long startTime = System.currentTimeMillis();
@@ -131,6 +133,7 @@ public class DatabaseManager {
                     output + " but the correct output is: " + correctOutput[outputIndex] +"\n");
         	}
         	outputIndex++;
+                outputResult += output + "\n\n";
         }
         
         long millisecondsToRun = System.currentTimeMillis() - startTime;
@@ -155,6 +158,8 @@ public class DatabaseManager {
         connection.commit();
         statement.close();
         connection.close();
+
+        return outputResult + "\n\nTotal runtime: " + millisecondsToRun;
     }
 
     /**
@@ -187,15 +192,25 @@ public class DatabaseManager {
         Channel channel = connection.createChannel();
         String queueName = channel.queueDeclare().getQueue();
         channel.queueBind(queueName, EXCHANGE_NAME, "java");
+
+        // channel.basicQos(1);
+
         QueueingConsumer consumer = new QueueingConsumer(channel);
         channel.basicConsume(queueName, true, consumer);
         System.out.println("Running version 1.0!");
         while (true) {
             QueueingConsumer.Delivery delivery = consumer.nextDelivery();
+            
+            BasicProperties props = delivery.getProperties();
+            BasicProperties replyProps = new BasicProperties.Builder()
+                .correlationId(props.getCorrelationId())  // Correlate request with response
+                .build();
+
             String message = new String(delivery.getBody());
             try {
                 int submissionId = Integer.parseInt(message);
-                getData(submissionId);
+                String result = getData(submissionId);
+                channel.basicPublish("", props.getReplyTo(), replyProps, result);
             } catch (ClassNotFoundException | SQLException | IOException | NumberFormatException e) {
                 e.printStackTrace();
             }
