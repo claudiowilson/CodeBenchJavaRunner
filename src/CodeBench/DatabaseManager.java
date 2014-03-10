@@ -1,11 +1,10 @@
 package CodeBench;
 
-import com.rabbitmq.client.Channel;
-import com.rabbitmq.client.ConnectionFactory;
-import com.rabbitmq.client.QueueingConsumer;
+import com.rabbitmq.client.*;
 
 import java.io.IOException;
 import java.sql.*;
+import java.sql.Connection;
 import java.util.ArrayList;
 
 public class DatabaseManager {
@@ -117,7 +116,7 @@ public class DatabaseManager {
             return compileResult;
         }
 
-        String outputResult = compileResult + "\n\n";
+        String outputResult = "";
 
         //Get the output for the program
         long startTime = System.currentTimeMillis();
@@ -127,22 +126,21 @@ public class DatabaseManager {
         for(String args : input) {
         	String output = codeRunner.runProgram(args.split(" "));
         	output = output.trim();
+            outputResult += "TESTING: Input = " + correctOutput[outputIndex] + "\n======================\n" + output;
         	if(!output.equals(correctOutput[outputIndex])) {
         		correctSubmission = false;
         		builder.append("Incorrect output! Your output was: " +
                     output + " but the correct output is: " + correctOutput[outputIndex] +"\n");
-        	}
+                outputResult += "\n[Incorrect output!]";
+        	} else {
+                outputResult += "\n[Correct output!]";
+            }
         	outputIndex++;
-                outputResult += output + "\n\n";
         }
         
         long millisecondsToRun = System.currentTimeMillis() - startTime;
         statement.executeUpdate("UPDATE codebench.submission SET time_taken = Interval '" + millisecondsToRun + " " +
                 "milliseconds' " + "WHERE submission_id=" + submissionID + ";");
-
-
-        //Trim the output to get rid of trailing new line characters
-        
 
         if (correctSubmission) {
             System.out.println("Correct submission");
@@ -159,7 +157,7 @@ public class DatabaseManager {
         statement.close();
         connection.close();
 
-        return outputResult + "\n\nTotal runtime: " + millisecondsToRun;
+        return outputResult + "\n======================\n[Total runtime: " + millisecondsToRun + "]";
     }
 
     /**
@@ -193,7 +191,7 @@ public class DatabaseManager {
         String queueName = channel.queueDeclare().getQueue();
         channel.queueBind(queueName, EXCHANGE_NAME, "java");
 
-        // channel.basicQos(1);
+        channel.basicQos(1);
 
         QueueingConsumer consumer = new QueueingConsumer(channel);
         channel.basicConsume(queueName, true, consumer);
@@ -202,7 +200,7 @@ public class DatabaseManager {
             QueueingConsumer.Delivery delivery = consumer.nextDelivery();
             
             BasicProperties props = delivery.getProperties();
-            BasicProperties replyProps = new BasicProperties.Builder()
+            BasicProperties replyProps = new AMQP.BasicProperties.Builder()
                 .correlationId(props.getCorrelationId())  // Correlate request with response
                 .build();
 
@@ -210,7 +208,7 @@ public class DatabaseManager {
             try {
                 int submissionId = Integer.parseInt(message);
                 String result = getData(submissionId);
-                channel.basicPublish("", props.getReplyTo(), replyProps, result);
+                channel.basicPublish("", props.getReplyTo(), (AMQP.BasicProperties) replyProps, result.getBytes());
             } catch (ClassNotFoundException | SQLException | IOException | NumberFormatException e) {
                 e.printStackTrace();
             }
